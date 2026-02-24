@@ -29,7 +29,7 @@ Before running locally, make sure you have:
 ## Clone and Setup
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
+git clone https://github.com/Epiphany-Leon/LifeOS-template.git
 cd LifeOS-template
 npm install
 ```
