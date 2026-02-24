@@ -66,7 +66,7 @@ if (db) {
 const sym = currencySymbols[lifestyleData.currency] || '¥';
 
 // ✅ AI 名言获取逻辑
-let aiQuote = { quote: "Your life is an enterprise; you are its CEO.", author: "Lihong Gao", tier: "正常" };
+let aiQuote = { quote: "Your life is an enterprise; you are its CEO.", author: "LifeOS", tier: "正常" };
 try {
   const quoteRes = await fetch(`${Astro.url.origin}/api/dashboard/quote`);
   if (quoteRes.ok) { aiQuote = await quoteRes.json(); }
@@ -166,7 +166,7 @@ const activeTierIndex = aiQuote.tier.includes('差') && !aiQuote.tier.includes('
             </div>
             <div class="flex-1 flex flex-col justify-end py-2">
                 <div class="flex flex-wrap gap-2 mb-3 opacity-80">
-                    <span class="px-2.5 py-1 bg-purple-100 text-purple-700 text-[9px] font-bold rounded-lg border border-purple-200">BAAI</span>
+                    <span class="px-2.5 py-1 bg-purple-100 text-purple-700 text-[9px] font-bold rounded-lg border border-purple-200">RESEARCH</span>
                     <span class="px-2.5 py-1 bg-purple-100 text-purple-700 text-[9px] font-bold rounded-lg border border-purple-200">QUANT</span>
                     <span class="px-2.5 py-1 bg-slate-100 text-slate-500 text-[9px] font-bold rounded-lg border border-slate-200">FINANCE</span>
                 </div>
@@ -225,5 +225,5 @@ const activeTierIndex = aiQuote.tier.includes('差') && !aiQuote.tier.includes('
   else if (hour >= 12 && hour < 18) greeting = "Good Afternoon";
   else if (hour >= 18 && hour < 22) greeting = "Good Evening";
   
-  document.getElementById('dynamicGreeting').innerText = `${greeting}, Lihong.`;
+  document.getElementById('dynamicGreeting').innerText = `${greeting}, Builder`;
 </script>

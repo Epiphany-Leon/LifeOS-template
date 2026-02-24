@@ -1,0 +1,28 @@
+# Build outputs
+node_modules/
+dist/
+.astro/
+
+# Cloudflare/Wrangler
+.wrangler/
+.dev.vars
+.dev.vars.*
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local exports
+backup-*.sql
+
+# OS/Editor
+.DS_Store
+.vscode/
+.idea/

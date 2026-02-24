@@ -55,7 +55,7 @@ app.get('/dashboard/quote', async (c) => {
 
     const prompt = `
       你是我的 LifeOS 顾问。我的状态：【${tier}】，心情分 ${mood}/10，最近觉知：“${reflection}”。
-      任务：针对我的背景（JHU BAAI 研究生），匹配一句深刻的中英文名人名言。
+      任务：结合我的当前状态，匹配一句深刻的中英文名人名言。
       请直接返回 JSON 格式，绝对不要包含 markdown 代码块标签（如 \`\`\`json）：
       { "quote": "名言正文", "author": "作者名", "tier": "${tier}" }
     `;
@@ -336,7 +336,7 @@ app.post('/vitals/chat', async (c) => {
   try {
     const { messages } = await c.req.json();
     const principles = await c.env.DB.prepare("SELECT content FROM principles").all();
-    const systemPrompt = `你是我（Lihong Gao）的灵魂导师。背景：JHU BAAI 研究生。准则：${principles.results.map((p:any) => p.content).join('; ')}。请给出理性且具启发性的对话。`;
+    const systemPrompt = `你是我的灵魂导师。背景：LifeOS 用户。准则：${principles.results.map((p:any) => p.content).join('; ')}。请给出理性且具启发性的对话。`;
     const response = await fetch("[https://api.deepseek.com/chat/completions](https://api.deepseek.com/chat/completions)", {
       method: "POST", headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
       body: JSON.stringify({ model: "deepseek-chat", messages: [{ role: "system", content: systemPrompt }, ...messages] })
