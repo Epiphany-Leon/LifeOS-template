@@ -1,0 +1,293 @@
+---
+// ✅ 核心修复 1：强制开启服务端实时渲染
+export const prerender = false;
+
+import Layout from '../../layouts/Layout.astro';
+import GlobalAlert from '../../components/GlobalAlert.astro';
+
+const db = Astro.locals.runtime?.env?.DB;
+
+let knowledgeList: any[] = [];
+let topicCounts: Record<string, number> = {};
+let variance = 0;
+let latestStress = 0;
+
+const today = new Date();
+const localNow = new Date(today.getTime() - (today.getTimezoneOffset() * 60000));
+const currentMonth = localNow.toISOString().substring(0, 7);
+const isMonday = today.getDay() === 1;
+
+const exchangeRates: Record<string, number> = { CNY: 1, USD: 7.25, EUR: 7.82, GBP: 9.15, JPY: 0.048 };
+
+// ✅ 核心修复 2：彻底解耦三大独立查询模块，一人报错绝不连坐
+if (db) {
+  // [独立模块 1] 获取认知资产
+  try {
+      const kRes = await db.prepare("SELECT * FROM knowledge ORDER BY updated_at DESC").all();
+      knowledgeList = kRes.results || [];
+      knowledgeList.forEach((item: any) => {
+          topicCounts[item.topic] = (topicCounts[item.topic] || 0) + 1;
+      });
+  } catch(e) { console.error("Knowledge Fetch Error", e); }
+
+  // [独立模块 2] 获取预算与流水 (用于 Global Alert)
+  try {
+      const bRes = await db.prepare("SELECT amount, currency FROM monthly_budgets WHERE month = ?").bind(currentMonth).all();
+      let budget = 0, displayCurrency = 'CNY';
+      if (bRes.results && bRes.results.length > 0) {
+          budget = bRes.results[0].amount as number;
+          displayCurrency = bRes.results[0].currency as string || 'CNY';
+      }
+      
+      const eRes = await db.prepare("SELECT amount, currency FROM expenses WHERE amount < 0 AND date LIKE ?").bind(`${currentMonth}%`).all();
+      let spent = 0;
+      const baseRate = exchangeRates[displayCurrency] || 1;
+      (eRes.results || []).forEach((exp: any) => {
+         const expRate = exchangeRates[exp.currency as string] || 1;
+         spent += (Math.abs(exp.amount as number) * expRate) / baseRate;
+      });
+      variance = budget - spent;
+  } catch(e) { console.error("Budget Fetch Error", e); }
+
+  // [独立模块 3] 获取压力指数
+  try {
+      const vRes = await db.prepare("SELECT stress_level FROM vitals ORDER BY date DESC LIMIT 1").all();
+      if (vRes.results && vRes.results.length > 0) {
+          latestStress = vRes.results[0].stress_level as number;
+      }
+  } catch(e) { console.error("Vitals Fetch Error", e); }
+}
+
+const hasTopics = Object.keys(topicCounts).length > 0;
+const topicConfig: Record<string, string> = {
+  'Data Analytics': 'text-blue-600 bg-blue-50 border-blue-200',
+  'AIGC & LLM': 'text-purple-600 bg-purple-50 border-purple-200',
+  'Quant Finance': 'text-emerald-600 bg-emerald-50 border-emerald-200',
+  'Fullstack Dev': 'text-amber-600 bg-amber-50 border-amber-200',
+  'Life & Philosophy': 'text-rose-600 bg-rose-50 border-rose-200',
+  'Others': 'text-slate-600 bg-slate-100 border-slate-200'
+};
+---
+
+<Layout title="Knowledge & Second Brain">
+  <GlobalAlert variance={variance} stress={latestStress} />
+  
+  <script is:inline src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script is:inline src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <div class="fixed top-0 left-0 right-0 z-40 p-6 pointer-events-none">
+    <div class="max-w-7xl mx-auto flex justify-end">
+      <nav class="pointer-events-auto flex items-center gap-1 p-1.5 rounded-full bg-white/40 backdrop-blur-xl border border-white/50 shadow-lg shadow-cyan-900/5 ring-1 ring-white/60">
+        <a href="/" class="px-4 py-2 rounded-full text-slate-600 font-medium hover:bg-white/30 transition-all text-sm">Dashboard</a>
+        <a href="/execution" class="px-4 py-2 rounded-full text-slate-600 font-medium hover:bg-white/30 transition-all text-sm">Execution</a>
+        <a href="/knowledge" class="px-5 py-2 rounded-full bg-white text-slate-800 font-semibold shadow-sm transition-all text-sm">Knowledge</a>
+        <a href="/lifestyle" class="px-4 py-2 rounded-full text-slate-600 font-medium hover:bg-white/30 transition-all text-sm">Lifestyle</a>
+        <a href="/vitals" class="px-4 py-2 rounded-full text-slate-600 font-medium hover:bg-white/30 transition-all text-sm">Vitals</a>
+      </nav>
+    </div>
+  </div>
+  
+  <main class="max-w-7xl mx-auto p-6 lg:p-12 pt-40 relative pb-32">
+    <header class="mb-10">
+      <h1 class="text-4xl font-bold text-slate-800">认知沉淀 · <span class="text-purple-600">Knowledge</span></h1>
+      <p class="text-slate-500 mt-2 font-medium">构建第二大脑。知识永不删除，只随时间沉淀。</p>
+    </header>
+
+    {isMonday && (
+    <div class="mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
+        <div class="bg-purple-600 text-white px-8 py-5 rounded-[2.5rem] shadow-xl shadow-purple-200 flex flex-col md:flex-row justify-between items-center gap-6 border-b-4 border-purple-800 active:translate-y-1 transition-all cursor-pointer group" onclick="startWeeklyReview()">
+          <div class="flex items-center gap-5">
+              <div class="p-3 bg-white/20 rounded-2xl"><svg class="w-7 h-7 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
+              <div>
+                  <div class="text-[11px] font-black uppercase tracking-[0.2em] opacity-80 mb-1">Weekly Review Pipeline</div>
+                  <div class="text-lg font-bold">周一复盘窗口已开启：立即调用 DeepSeek 合成洞察报告</div>
+              </div>
+          </div>
+          <div class="flex items-center gap-3 bg-white/10 px-5 py-2.5 rounded-full border border-white/20 group-hover:bg-white group-hover:text-purple-600 transition-all">
+              <span class="text-sm font-black">立即触发</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+          </div>
+        </div>
+    </div>
+    )}
+
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+      <div class="bg-white/40 backdrop-blur-xl border border-white/60 p-8 rounded-[2.5rem] shadow-xl shadow-purple-900/5 min-h-[150px] flex flex-col justify-start">
+        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Knowledge Assets</p>
+        <div class="text-4xl font-black text-slate-800 tracking-tight" id="totalCountDisplay">{knowledgeList.length}</div>
+      </div>
+      
+      <div class="md:col-span-2 bg-white/40 backdrop-blur-xl border border-white/60 p-8 rounded-[2.5rem] shadow-xl shadow-purple-900/5 min-h-[150px] flex flex-col justify-start">
+        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Topic Distribution</p>
+        {hasTopics ? (
+          <div class="flex flex-wrap gap-2">
+            {Object.entries(topicCounts).map(([topic, count]) => (
+              <span class={`text-[10px] px-3 py-1.5 rounded-lg font-bold uppercase border shadow-sm flex items-center gap-1.5 ${topicConfig[topic] || topicConfig['Others']}`}>
+                {topic} <span class="bg-white/40 px-1.5 rounded text-black/40">{count}</span>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p class="text-sm text-slate-400 font-medium italic mt-1">暂时还没有 Topic，请尽快开始知识库的整理。</p>
+        )}
+      </div>
+    </section>
+
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+      <h2 class="text-2xl font-bold text-slate-800 shrink-0">知识星球 Zettelkasten</h2>
+      <div class="flex w-full md:w-auto gap-3">
+        <div class="relative w-full md:w-72">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          </div>
+          <input type="text" id="searchInput" class="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-full bg-white/60 focus:outline-none focus:bg-white focus:ring-2 focus:ring-purple-500/30 sm:text-sm transition-all font-medium" placeholder="搜索知识资产...">
+        </div>
+        <button onclick="openKnowledgeModal()" class="px-6 py-2.5 bg-purple-600 text-white rounded-full font-bold hover:bg-purple-500 transition shadow-lg active:scale-95 shrink-0">+ 沉淀知识</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start" id="knowledgeContainer">
+      {knowledgeList.map((item:any) => (
+        <div class="knowledge-card bg-white/40 backdrop-blur-xl border border-white/60 p-6 rounded-3xl hover:bg-white/70 transition-all group flex flex-col justify-between shadow-xl shadow-purple-900/5 min-h-[200px]" data-search-content={`${item.title} ${item.content}`.toLowerCase()}>
+          <div>
+            <div class="flex justify-between items-start mb-3">
+              <span class={`text-[10px] px-2.5 py-1 rounded-md font-bold uppercase border shadow-sm ${topicConfig[item.topic] || topicConfig['Others']}`}>{item.topic}</span>
+              <button class="edit-btn opacity-0 group-hover:opacity-100 p-1.5 rounded-full bg-white text-purple-500 hover:bg-purple-50 shadow-sm transition" data-id={item.id} data-title={item.title} data-topic={item.topic} data-content={item.content}><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800 leading-tight mb-3">{item.title}</h3>
+            <p class="text-sm text-slate-600 line-clamp-4 leading-relaxed whitespace-pre-wrap font-mono bg-white/30 p-3 rounded-xl border border-white/50">{item.content}</p>
+          </div>
+          <div class="flex justify-between items-end border-t border-white/50 pt-3 mt-4 text-[10px] text-slate-400 font-mono tracking-tight">
+            <span>Updated: {new Date(item.updated_at).toLocaleDateString('zh-CN')}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  </main>
+
+  <div id="reviewModal" class="fixed inset-0 z-50 hidden items-center justify-center opacity-0 transition-opacity">
+      <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onclick="closeReviewModal()"></div>
+      <div class="relative bg-white p-8 rounded-[3rem] shadow-2xl w-full max-w-2xl transform scale-95 transition-all flex flex-col max-h-[80vh] m-auto">
+          <h3 class="text-2xl font-black text-slate-800 mb-4 flex items-center gap-3"><span class="p-2 bg-purple-100 text-purple-600 rounded-xl">🧠</span>知识资产深度复盘</h3>
+          <div id="reviewContent" class="flex-1 overflow-y-auto prose prose-purple max-w-none font-mono text-sm leading-relaxed p-6 bg-slate-50 rounded-3xl border border-slate-100 custom-scrollbar"><p class="animate-pulse text-slate-400">正在调用 DeepSeek 进行认知合成...</p></div>
+          <div class="mt-6 flex justify-end gap-3">
+              <button onclick="closeReviewModal()" class="px-6 py-2 rounded-full font-bold text-slate-500 hover:bg-slate-100 transition">完成检阅</button>
+              <button onclick="saveReportToVitals()" id="saveReportBtn" class="px-6 py-2 bg-emerald-600 text-white rounded-full font-bold shadow-lg shadow-emerald-200 active:scale-95 transition-all flex items-center gap-2">
+                <span>✨ 存为灵魂觉知</span>
+              </button>
+          </div>
+      </div>
+  </div>
+
+  <div id="knowledgeModal" class="fixed inset-0 z-50 hidden opacity-0 transition-opacity duration-300">
+    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm cursor-pointer" onclick="closeKnowledgeModal()"></div>
+    <div class="relative m-auto bg-white/90 backdrop-blur-3xl border border-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-4xl transform scale-95 transition-transform duration-300 max-h-[95vh] flex flex-col">
+      <div class="flex justify-between items-center mb-6 shrink-0">
+        <h3 id="modalTitle" class="text-2xl font-bold text-slate-800">💡 沉淀知识</h3>
+        <div class="flex items-center gap-4">
+          <label class="flex items-center cursor-pointer bg-slate-100 p-1 rounded-full border border-slate-200">
+            <div class="relative"><input type="checkbox" id="previewToggle" class="sr-only" onchange="togglePreviewMode()"><div class="block w-24 h-8 bg-transparent rounded-full"></div><div class="dot absolute left-1 top-1 bg-white w-11 h-6 rounded-full transition-transform flex items-center justify-center shadow-sm text-xs font-bold text-purple-600">MD</div><div class="absolute inset-0 flex justify-between items-center px-3 text-[10px] font-bold text-slate-400 pointer-events-none"><span>源码</span><span>预览</span></div></div>
+          </label>
+          <button onclick="closeKnowledgeModal()" class="p-2 rounded-full bg-slate-100 text-slate-400 hover:text-rose-500 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+        </div>
+      </div>
+      <form id="knowledgeForm" class="flex-1 flex flex-col overflow-hidden space-y-4">
+        <input type="hidden" id="noteId" value="">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 bg-slate-50 border border-slate-100 rounded-2xl shrink-0">
+          <div class="flex gap-2 col-span-1"><input type="url" id="urlInput" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs focus:outline-none focus:border-purple-400" placeholder="网页提取 (URL)"><button type="button" id="fetchUrlBtn" class="px-3 py-2 bg-slate-800 text-white text-[10px] font-bold rounded-xl shrink-0 hover:bg-slate-700">抓取</button></div>
+          <div class="relative col-span-1"><input type="file" id="fileInput" accept=".md,.txt" class="absolute inset-0 opacity-0 cursor-pointer"><div class="w-full h-full px-3 py-2 bg-white border border-slate-200 border-dashed rounded-xl flex items-center justify-center text-[10px] text-slate-500 font-bold hover:bg-slate-50">📎 上传 .md / .txt</div></div>
+          <div class="relative col-span-1"><input type="file" id="ocrInput" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer"><div class="w-full h-full px-3 py-2 bg-white border border-slate-200 border-dashed rounded-xl flex items-center justify-center text-[10px] text-slate-500 font-bold hover:bg-slate-50">📸 截图提取 OCR</div></div>
+        </div>
+        <div class="grid grid-cols-4 gap-4 shrink-0">
+            <input type="text" id="title" required class="col-span-3 px-4 py-3 rounded-2xl bg-white/60 border border-slate-200 focus:border-purple-400 outline-none font-bold" placeholder="输入标题...">
+            <select id="topic" class="col-span-1 px-4 py-3 rounded-2xl bg-white/60 border border-slate-200 outline-none font-bold text-sm">
+                <option value="Data Analytics">📊 Data Analytics</option>
+                <option value="AIGC & LLM">🤖 AIGC & LLM</option>
+                <option value="Quant Finance">📈 Quant Finance</option>
+                <option value="Fullstack Dev">💻 Fullstack Dev</option>
+                <option value="Life & Philosophy">🧘‍♂️ Life & Philosophy</option>
+                <option value="Others">📦 Others</option>
+            </select>
+        </div>
+        <div class="flex-1 flex flex-col relative min-h-[300px]">
+            <textarea id="content" required class="w-full flex-1 px-4 py-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none font-mono text-sm leading-relaxed custom-scrollbar focus:border-purple-400" placeholder="# 开始沉淀..."></textarea>
+            <div id="previewArea" class="hidden absolute inset-0 top-[2px] bg-white border border-slate-200 rounded-2xl p-6 overflow-y-auto custom-scrollbar prose prose-purple prose-sm max-w-none"></div>
+        </div>
+        <div class="pt-4 flex justify-end shrink-0">
+            <button type="submit" id="submitBtn" class="px-10 py-3 rounded-full bg-purple-600 text-white font-bold hover:bg-purple-500 transition shadow-xl active:scale-95 text-lg">持久化存档</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</Layout>
+
+<script is:inline>
+  const rModal = document.getElementById('reviewModal'), rContent = document.getElementById('reviewContent'), kModal = document.getElementById('knowledgeModal'), kForm = document.getElementById('knowledgeForm'), contentArea = document.getElementById('content'), previewArea = document.getElementById('previewArea'), toggleCheckbox = document.getElementById('previewToggle');
+
+  // AI Review Logic
+  window.startWeeklyReview = async () => {
+    rModal.classList.remove('hidden'); rModal.classList.add('flex'); void rModal.offsetWidth; rModal.classList.remove('opacity-0'); rModal.querySelector('.relative').classList.remove('scale-95');
+    rContent.innerHTML = `<div class="flex flex-col items-center justify-center py-10 text-slate-500"><div class="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></div><p class="font-bold animate-pulse text-sm tracking-tight">DeepSeek 正在扫描本周资产，构建认知连线...</p></div>`;
+    try {
+      const res = await fetch('/api/knowledge/synthesize', { method: 'POST' });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      rContent.innerHTML = marked.parse(data.report);
+    } catch (err) { rContent.innerHTML = `<div class="p-6 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 font-bold">⚠️ 复盘合成失败，请确认 API Key 配置与网络。</div>`; }
+  };
+
+  // Sync to Vitals
+  window.saveReportToVitals = async () => {
+    const reportRaw = rContent.innerText;
+    const btn = document.getElementById('saveReportBtn');
+    btn.disabled = true; btn.innerHTML = '✨ 同步中...';
+    try {
+      const res = await fetch('/api/vitals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reflection: `【每周认知复盘合成报告】\n\n${reportRaw}`, date: new Date().toISOString().slice(0, 10) })
+      });
+      if ((await res.json()).success) {
+        btn.innerHTML = '✅ 已存入 Vitals';
+        setTimeout(() => { closeReviewModal(); window.location.href = '/vitals'; }, 1000);
+      }
+    } catch (err) { alert('同步失败'); btn.disabled = false; btn.innerHTML = '<span>✨ 存为灵魂觉知</span>'; }
+  };
+
+  window.closeReviewModal = () => { rModal.classList.add('opacity-0'); rModal.querySelector('.relative').classList.add('scale-95'); setTimeout(() => { rModal.classList.add('hidden'); rModal.classList.remove('flex'); }, 300); };
+  
+  // Search
+  document.getElementById('searchInput')?.addEventListener('input', (e) => { const term = e.target.value.toLowerCase(); document.querySelectorAll('.knowledge-card').forEach(card => { card.style.display = card.dataset.searchContent.includes(term) ? 'flex' : 'none'; }); });
+  
+  // Modal Management
+  window.openKnowledgeModal = (id = null, title = '', topic = 'Data Analytics', content = '') => { document.getElementById('modalTitle').innerText = id ? '✏️ 编辑知识' : '💡 新增知识'; document.getElementById('noteId').value = id || ''; document.getElementById('title').value = title; document.getElementById('topic').value = topic; contentArea.value = content; toggleCheckbox.checked = false; togglePreviewMode(); kModal.classList.remove('hidden'); kModal.classList.add('flex'); void kModal.offsetWidth; kModal.classList.remove('opacity-0'); kModal.querySelector('.relative').classList.remove('scale-95'); };
+  window.closeKnowledgeModal = () => { kModal.classList.add('opacity-0'); kModal.querySelector('.relative').classList.add('scale-95'); setTimeout(() => {kModal.classList.add('hidden'); kModal.classList.remove('flex');}, 300); };
+  window.togglePreviewMode = () => { const dot = document.querySelector('.dot'); if (toggleCheckbox.checked) { dot.style.transform = 'translateX(100%)'; dot.innerText = 'Rich'; contentArea.classList.add('invisible'); previewArea.classList.remove('hidden'); previewArea.innerHTML = marked.parse(contentArea.value || '*内容为空*'); } else { dot.style.transform = 'translateX(0)'; dot.innerText = 'MD'; contentArea.classList.remove('invisible'); previewArea.classList.add('hidden'); } };
+
+  // Jina Web Fetch & OCR
+  document.getElementById('fetchUrlBtn').addEventListener('click', async () => { const url = document.getElementById('urlInput').value; if (!url) return; const btn = document.getElementById('fetchUrlBtn'); btn.innerText = '...'; try { const res = await fetch('https://r.jina.ai/' + url); contentArea.value += await res.text(); } catch (err) { alert('抓取失败'); } finally { btn.innerText = '抓取'; } });
+  document.getElementById('ocrInput').addEventListener('change', async (e) => { const file = e.target.files[0]; if (!file) return; const info = e.target.nextElementSibling; info.innerText = '🔍 OCR...'; try { const { data: { text } } = await Tesseract.recognize(file, 'chi_sim+eng'); contentArea.value += `\n\n> [OCR 结果]\n${text}`; } catch (err) { alert('OCR 失败'); } finally { info.innerText = '📸 截图提取 OCR'; e.target.value = ''; } });
+  document.getElementById('fileInput').addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (event) => { contentArea.value += `\n\n${event.target.result}`; e.target.value = ''; }; reader.readAsText(file); });
+
+  // ✅ 核心修复 3: 触发 window.location.reload() 获取刚刚存入的数据
+  kForm.addEventListener('submit', async (e) => { 
+      e.preventDefault(); 
+      const id = document.getElementById('noteId').value; 
+      await fetch(id ? `/api/knowledge/${id}` : '/api/knowledge', { 
+          method: id ? 'PUT' : 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ title: document.getElementById('title').value, topic: document.getElementById('topic').value, content: contentArea.value }) 
+      }); 
+      window.location.reload(); 
+  });
+  
+  document.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', () => { const d = b.dataset; window.openKnowledgeModal(d.id, d.title, d.topic, d.content); }));
+</script>
+
+<style is:global>
+  .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(147, 51, 234, 0.2); border-radius: 10px; }
+  .prose h1, .prose h2, .prose h3, .prose h4 { color: #1e293b; font-weight: 800; margin-top: 1.5em; margin-bottom: 0.5em; }
+  .prose code { background: #f3f4f6; color: #db2777; padding: 2px 4px; border-radius: 4px; font-size: 0.9em; }
+  .prose hr { border: 0; border-top: 1px solid #e2e8f0; margin: 2em 0; }
+</style>

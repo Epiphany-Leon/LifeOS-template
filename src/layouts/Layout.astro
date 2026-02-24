@@ -1,0 +1,50 @@
+---
+import '../styles/global.css';
+
+interface Props {
+	title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-cn">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="description" content="Lihong's LifeOS" />
+		<meta name="viewport" content="width=device-width" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{title}</title>
+	</head>
+	<body class="min-h-screen text-slate-700 antialiased selection:bg-cyan-200 selection:text-cyan-900 overflow-x-hidden bg-gradient-to-br from-[#00a5d8] via-[#73ffee] to-[#ffffeb] bg-fixed">
+		
+		<div class="fixed top-[-10%] left-[-10%] h-[500px] w-[500px] rounded-full bg-white/30 blur-[100px] pointer-events-none mix-blend-overlay"></div>
+		<div class="fixed bottom-[-10%] right-[-10%] h-[600px] w-[600px] rounded-full bg-white/40 blur-[120px] pointer-events-none mix-blend-overlay"></div>
+
+		<slot />
+	</body>
+</html>
+
+<style is:global>
+	html {
+		font-family: 'Inter', system-ui, sans-serif;
+		scroll-behavior: smooth;
+	}
+	
+	/* 针对这组浅色背景的滚动条美化 */
+	::-webkit-scrollbar {
+		width: 8px;
+	}
+	::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	::-webkit-scrollbar-thumb {
+		background: rgba(0, 165, 216, 0.2); /* 使用你的主色 #00a5d8 做滚动条 */
+		border-radius: 10px;
+	}
+	::-webkit-scrollbar-thumb:hover {
+		background: rgba(0, 165, 216, 0.4);
+	}
+</style>

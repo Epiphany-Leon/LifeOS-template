@@ -1,0 +1,386 @@
+---
+// ✅ 核心指令：强制服务端实时渲染
+export const prerender = false;
+
+import Layout from '../../layouts/Layout.astro';
+import GlobalAlert from '../../components/GlobalAlert.astro';
+
+const db = Astro.locals.runtime?.env?.DB;
+
+let principles: any[] = [];
+let vitalsList: any[] = [];
+let theVoid: any[] = [];
+let variance = 0;
+let latestStress = 0;
+
+const now = new Date();
+const localNow = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
+const currentMonth = localNow.toISOString().substring(0, 7);
+const exchangeRates: Record<string, number> = { CNY: 1, USD: 7.25, EUR: 7.82, GBP: 9.15, JPY: 0.048 };
+
+// 防爆盾架构查询
+if (db) {
+  try {
+      const bRes = await db.prepare("SELECT amount, currency FROM monthly_budgets WHERE month = ?").bind(currentMonth).all();
+      let budget = 0, displayCurrency = 'CNY';
+      if (bRes.results && bRes.results.length > 0) {
+          budget = bRes.results[0].amount as number;
+          displayCurrency = bRes.results[0].currency as string || 'CNY';
+      }
+      const eRes = await db.prepare("SELECT amount, currency FROM expenses WHERE amount < 0 AND date LIKE ?").bind(`${currentMonth}%`).all();
+      let spent = 0;
+      const baseRate = exchangeRates[displayCurrency] || 1;
+      (eRes.results || []).forEach((exp: any) => {
+         const expRate = exchangeRates[exp.currency as string] || 1;
+         spent += (Math.abs(exp.amount as number) * expRate) / baseRate;
+      });
+      variance = budget - spent;
+  } catch(e) { console.error("Vitals: Budget Error"); }
+
+  try {
+      const vRes = await db.prepare("SELECT * FROM vitals ORDER BY date DESC, id DESC LIMIT 30").all();
+      vitalsList = vRes.results || [];
+      if (vitalsList.length > 0) latestStress = vitalsList[0].stress_level as number;
+  } catch(e) { console.error("Vitals: Journal Error"); }
+
+  try {
+      const pRes = await db.prepare("SELECT * FROM principles ORDER BY id ASC").all();
+      principles = pRes.results || [];
+  } catch(e) { console.error("Vitals: Principles Error"); }
+
+  try {
+      const tvRes = await db.prepare("SELECT * FROM the_void ORDER BY created_at DESC LIMIT 10").all();
+      theVoid = tvRes.results || [];
+  } catch(e) { console.error("Vitals: The Void Error"); }
+}
+
+// 将原则按 Category 分组渲染
+const groupedPrinciples = principles.reduce((acc: any, curr: any) => {
+    const cat = curr.category || 'Uncategorized';
+    acc[cat] = acc[cat] || [];
+    acc[cat].push(curr);
+    return acc;
+}, {});
+---
+
+<Layout title="Vitals - 觉知与心智">
+  <GlobalAlert variance={variance} stress={latestStress} />
+  <script is:inline src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <div class="fixed top-0 left-0 right-0 z-40 p-6 pointer-events-none">
+    <div class="max-w-7xl mx-auto flex justify-end">
+      <nav class="pointer-events-auto flex items-center gap-1 p-1.5 rounded-full bg-white/40 backdrop-blur-xl border border-white/50 shadow-lg shadow-cyan-900/5 ring-1 ring-white/60">
+        <a href="/" class="px-4 py-2 rounded-full text-slate-600 font-medium hover:bg-white/30 transition-all text-sm">Dashboard</a>
+        <a href="/execution" class="px-4 py-2 rounded-full text-slate-600 font-medium hover:bg-white/30 transition-all text-sm">Execution</a>
+        <a href="/knowledge" class="px-4 py-2 rounded-full text-slate-600 font-medium hover:bg-white/30 transition-all text-sm">Knowledge</a>
+        <a href="/lifestyle" class="px-4 py-2 rounded-full text-slate-600 font-medium hover:bg-white/30 transition-all text-sm">Lifestyle</a>
+        <a href="/vitals" class="px-5 py-2 rounded-full bg-white text-slate-800 font-semibold shadow-sm transition-all text-sm">Vitals</a>
+      </nav>
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto p-6 lg:p-12 pt-40 pb-32">
+    <header class="mb-12">
+      <h1 class="text-4xl font-bold text-slate-800">心智引擎 · <span class="text-indigo-600">Vitals</span></h1>
+      <p class="text-slate-500 mt-2 font-medium">原则沉淀、觉知内省与 AI 灵魂导师。</p>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div class="lg:col-span-1 space-y-8">
+        
+        <section class="bg-white/80 backdrop-blur-xl border border-blue-100 rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden">
+          <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl pointer-events-none -mt-10 -mr-10"></div>
+          <h2 class="text-xl font-black uppercase tracking-widest mb-6 text-blue-800 flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            Core Principles
+          </h2>
+          <div class="space-y-6">
+            {Object.keys(groupedPrinciples).map(category => (
+                <div>
+                    <h3 class="text-xs font-black text-blue-400 uppercase tracking-widest mb-3 border-b border-blue-100/50 pb-2">{category}</h3>
+                    <div class="space-y-3">
+                        {groupedPrinciples[category].map((p:any) => (
+                            <div class="group relative bg-slate-50 p-4 rounded-2xl border border-slate-100 hover:border-blue-200 transition shadow-sm">
+                                <textarea id={`p-${p.id}`} class="w-full bg-transparent resize-none outline-none font-bold text-sm text-slate-700 group-hover:text-blue-900 transition-colors custom-scrollbar" rows="2" onblur={`updatePrinciple(${p.id})`}>{p.content}</textarea>
+                                <div class="absolute right-3 bottom-3 flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                                    <span class="text-[10px] uppercase font-bold text-blue-400 pointer-events-none mt-1">Auto-save</span>
+                                    <button onclick={`deletePrinciple(${p.id})`} class="p-1 bg-white text-rose-400 border border-slate-200 rounded hover:bg-rose-50 transition" title="删除重复项"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
+            {principles.length === 0 && <p class="text-xs text-slate-500 italic">尚未确立原则。你需要基石来对抗混沌。</p>}
+          </div>
+        </section>
+
+        <section class="bg-white/50 backdrop-blur-xl border border-slate-200 rounded-[2.5rem] p-8 shadow-xl">
+          <h2 class="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">The Void (心智排空)</h2>
+          <form id="voidForm" class="relative">
+            <input type="text" id="voidInput" required placeholder="丢弃情绪垃圾与杂念..." class="w-full bg-slate-100 border-none px-5 py-4 rounded-2xl text-sm outline-none focus:ring-2 focus:ring-slate-300 pr-12 text-slate-700">
+            <button type="submit" class="absolute right-2 top-2 bottom-2 aspect-square bg-slate-800 text-white rounded-xl flex items-center justify-center hover:bg-slate-700 transition">
+               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            </button>
+          </form>
+          <div class="mt-4 flex gap-2 flex-wrap">
+            {theVoid.map((v:any) => (<span class="text-[10px] px-2 py-1 bg-slate-100 text-slate-400 rounded-md line-through decoration-slate-300 truncate max-w-full block">{v.content}</span>))}
+          </div>
+        </section>
+      </div>
+
+      <div class="lg:col-span-2">
+        <section class="bg-white/60 backdrop-blur-xl border border-white p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 min-h-full flex flex-col">
+          <div class="flex justify-between items-center mb-8 border-b border-slate-200/50 pb-4 shrink-0">
+            <h2 class="text-2xl font-black text-slate-800 flex items-center gap-3">
+              <span class="w-2.5 h-6 bg-indigo-500 rounded-full"></span> 觉知流 (Journal)
+            </h2>
+            <div class="flex items-center gap-3">
+               <div class="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg">Last 30 Days</div>
+               <button onclick="openVitalsModal()" class="px-4 py-1.5 bg-slate-800 text-white rounded-lg font-bold text-xs shadow-md hover:bg-slate-700 active:scale-95 transition-all flex items-center gap-1">
+                  <span>+</span> 记录觉知
+               </button>
+            </div>
+          </div>
+          
+          <div class="space-y-6 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            {vitalsList.map((v:any) => {
+               const safeReflection = v.reflection ? String(v.reflection).replace(/'/g, "\\'").replace(/\n/g, "\\n") : '';
+               return (
+              <div class="group bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all relative">
+                <div class="flex justify-between items-start mb-3">
+                  <div class="flex gap-2 items-center">
+                      <div class="text-[10px] font-black uppercase tracking-widest text-indigo-400 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">{v.date ? v.date.slice(0, 10) : '近期'}</div>
+                      {/* ✅ 修复 0 值的显示判定 */}
+                      {(v.mood_score != null || v.stress_level != null) && (
+                          <div class="text-[9px] font-bold text-slate-400">
+                             {v.mood_score != null ? `心情: ${v.mood_score}` : ''} {v.stress_level != null ? `| 压力: ${v.stress_level}` : ''}
+                          </div>
+                      )}
+                  </div>
+                  <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* ✅ 修复 0 值传入模态框的判定 */}
+                      <button onclick={`openVitalsModal(${v.id}, '${safeReflection}', ${v.mood_score != null ? v.mood_score : 6}, ${v.stress_level != null ? v.stress_level : 30})`} class="text-blue-500 p-1.5 hover:bg-blue-50 rounded-lg transition" title="修改内容"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg></button>
+                      <button onclick={`deleteVital(${v.id})`} class="text-rose-400 p-1.5 hover:bg-rose-50 rounded-lg transition" title="删除记录"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                  </div>
+                </div>
+                <div class="text-sm text-slate-700 leading-relaxed font-medium whitespace-pre-wrap">{v.reflection}</div>
+              </div>
+            )})}
+            {vitalsList.length === 0 && <div class="p-12 text-center text-slate-400 border-2 border-dashed border-slate-200 rounded-[2rem] font-medium">尚未开启觉知记录。点击上方按钮开始记录。</div>}
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <button onclick="openChatModal()" class="fixed bottom-10 right-10 z-40 w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-2xl shadow-indigo-500/40 hover:scale-110 hover:bg-indigo-500 active:scale-95 transition-all group border-4 border-white">
+      <span class="text-2xl group-hover:animate-bounce">🤖</span>
+      <span class="absolute -top-12 right-0 bg-slate-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">呼叫灵魂导师</span>
+  </button>
+
+  <div id="vitalsModal" class="fixed inset-0 z-50 hidden opacity-0 transition-opacity duration-300">
+    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-md cursor-pointer" onclick="closeVitalsModal()"></div>
+    <div class="relative m-auto bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300">
+      <h3 id="vModalTitle" class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-2"><span>🧘‍♂️</span> 捕捉灵魂觉知</h3>
+      <form id="vitalsForm" class="space-y-5">
+        <input type="hidden" id="vId" value="">
+        <div>
+            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">觉知与灵感 (Reflection)</label>
+            <textarea id="vReflection" required rows="6" class="w-full px-5 py-4 rounded-2xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 text-slate-700 text-sm leading-relaxed resize-none custom-scrollbar" placeholder="写下你此刻最纯粹的直觉、反思或灵光一闪..."></textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">心情打分 (1-10)</label>
+                <input type="number" id="vMood" min="1" max="10" value="6" class="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 text-slate-800 font-bold text-center">
+            </div>
+            <div>
+                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">压力指数 (1-100)</label>
+                <input type="number" id="vStress" min="0" max="100" value="30" class="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-rose-500/30 text-rose-600 font-bold text-center">
+            </div>
+        </div>
+        <div class="pt-2 flex justify-end gap-3">
+            <button type="button" onclick="closeVitalsModal()" class="px-6 py-3 rounded-full text-slate-500 font-bold hover:bg-slate-100 transition">取消</button>
+            <button type="submit" id="vSubmitBtn" class="px-8 py-3 bg-indigo-600 text-white rounded-full font-black hover:bg-indigo-500 shadow-xl active:scale-95 transition-all">定格这一刻</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="chatModal" class="fixed inset-0 z-50 hidden opacity-0 transition-opacity duration-300">
+    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm cursor-pointer" onclick="closeChatModal()"></div>
+    <div class="relative m-auto bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl transform scale-95 transition-transform duration-300 flex flex-col h-[80vh] max-h-[800px] overflow-hidden border border-slate-200">
+      
+      <div class="bg-indigo-600 p-5 text-white flex justify-between items-center shrink-0 shadow-md z-10">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-xl">🤖</div>
+            <div><h3 class="font-black text-lg leading-tight">灵魂导师</h3><p class="text-[10px] text-indigo-200 uppercase tracking-widest font-bold">DeepSeek Powered</p></div>
+        </div>
+        <button onclick="closeChatModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/20 transition"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+      </div>
+
+      <div id="chatWindow" class="flex-1 p-6 overflow-y-auto bg-slate-50 space-y-6 custom-scrollbar text-sm font-medium">
+         <div class="flex gap-4 w-5/6">
+            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 mt-1 shadow-sm">🤖</div>
+            <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-slate-700 leading-relaxed">你好，Lihong。我是你的专属觉知导师。你的原则和近期经历我都了解，今天需要我帮你理清什么思路？</div>
+         </div>
+      </div>
+
+      <form id="chatForm" class="p-4 bg-white border-t border-slate-100 shrink-0">
+        <div class="relative flex items-center">
+            <input type="text" id="chatInput" autocomplete="off" required placeholder="输入你的困惑..." class="w-full bg-slate-50 border border-slate-200 rounded-full pl-5 pr-14 py-3.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 text-slate-800 transition">
+            <button type="submit" id="chatBtn" class="absolute right-1.5 w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:bg-indigo-500 transition active:scale-95 shadow-md shadow-indigo-200">
+                <svg class="w-4 h-4 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+            </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</Layout>
+
+<script is:inline>
+  window.updatePrinciple = async (id) => {
+    const val = document.getElementById(`p-${id}`).value;
+    try { await fetch(`/api/principles/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ content: val }) }); } catch(err) { console.error('原则保存失败'); }
+  };
+  window.deletePrinciple = async (id) => {
+      if(confirm('删除这条重复原则？')) {
+          await fetch(`/api/principles/${id}`, { method: 'DELETE' });
+          setTimeout(() => window.location.reload(), 100);
+      }
+  };
+
+  document.getElementById('voidForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('voidInput');
+    const content = input.value.trim();
+    if (!content) return;
+    try {
+        await fetch('/api/the_void', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ content: content }) });
+        setTimeout(() => window.location.reload(), 100); 
+    } catch(err) { alert('丢弃失败。'); }
+  });
+
+  const vModal = document.getElementById('vitalsModal'), vForm = document.getElementById('vitalsForm');
+  
+  window.openVitalsModal = (id = null, reflection = '', mood = 6, stress = 30) => { 
+      document.getElementById('vModalTitle').innerHTML = id ? '<span>✏️</span> 修改灵魂觉知' : '<span>🧘‍♂️</span> 捕捉灵魂觉知';
+      document.getElementById('vId').value = id || '';
+      document.getElementById('vReflection').value = reflection;
+      document.getElementById('vMood').value = mood;
+      document.getElementById('vStress').value = stress;
+      
+      vModal.classList.remove('hidden'); vModal.classList.add('flex'); void vModal.offsetWidth; 
+      vModal.classList.remove('opacity-0'); vModal.querySelector('div.relative').classList.remove('scale-95'); 
+      setTimeout(()=>document.getElementById('vReflection').focus(), 100); 
+  };
+  
+  window.closeVitalsModal = () => { 
+      vModal.classList.add('opacity-0'); vModal.querySelector('div.relative').classList.add('scale-95'); 
+      setTimeout(() => { vModal.classList.add('hidden'); vModal.classList.remove('flex'); }, 300); 
+  };
+
+  vForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('vSubmitBtn');
+      btn.innerText = '保存中...'; btn.disabled = true;
+
+      const id = document.getElementById('vId').value;
+      
+      // ✅ 修复 JavaScript 转换假值 0 的底层 Bug
+      const rawMood = parseInt(document.getElementById('vMood').value, 10);
+      const rawStress = parseInt(document.getElementById('vStress').value, 10);
+
+      const data = {
+          reflection: document.getElementById('vReflection').value,
+          mood_score: isNaN(rawMood) ? 6 : rawMood,
+          stress_level: isNaN(rawStress) ? 30 : rawStress,
+          date: new Date().toISOString().slice(0, 10)
+      };
+
+      try {
+          await fetch(id ? `/api/vitals/${id}` : '/api/vitals', { 
+              method: id ? 'PUT' : 'POST', 
+              headers: {'Content-Type': 'application/json'}, 
+              body: JSON.stringify(data) 
+          });
+          setTimeout(() => window.location.reload(), 100);
+      } catch (err) {
+          alert('保存失败。');
+          btn.innerText = '定格这一刻'; btn.disabled = false;
+      }
+  });
+
+  window.deleteVital = async (id) => {
+    if(confirm('要删除这条觉知记录吗？')) {
+        await fetch(`/api/vitals/${id}`, { method: 'DELETE' });
+        setTimeout(() => window.location.reload(), 100);
+    }
+  };
+
+  // AI Chatbot
+  let chatHistory = [];
+  const cModal = document.getElementById('chatModal'), cWindow = document.getElementById('chatWindow'), cInput = document.getElementById('chatInput'), cBtn = document.getElementById('chatBtn');
+  
+  window.openChatModal = () => { 
+      cModal.classList.remove('hidden'); cModal.classList.add('flex'); void cModal.offsetWidth; 
+      cModal.classList.remove('opacity-0'); cModal.querySelector('div.relative').classList.remove('scale-95'); 
+      setTimeout(()=>cInput.focus(), 100); 
+  };
+  window.closeChatModal = () => { 
+      cModal.classList.add('opacity-0'); cModal.querySelector('div.relative').classList.add('scale-95'); 
+      setTimeout(() => { cModal.classList.add('hidden'); cModal.classList.remove('flex'); }, 300); 
+  };
+
+  function appendMsg(role, text) {
+      const isUser = role === 'user';
+      const div = document.createElement('div');
+      div.className = `flex gap-4 ${isUser ? 'w-5/6 ml-auto flex-row-reverse' : 'w-5/6'}`;
+      let innerHTML = '';
+      if(isUser) { 
+          innerHTML = `<div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-white shrink-0 mt-1 shadow-md">👤</div><div class="bg-slate-800 p-4 rounded-2xl rounded-tr-none shadow-md text-white leading-relaxed font-medium break-words">${text}</div>`; 
+      } else {
+          const safeText = typeof marked !== 'undefined' ? marked.parse(text) : `<div class="whitespace-pre-wrap">${text}</div>`;
+          innerHTML = `<div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 mt-1 shadow-sm">🤖</div><div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-slate-700 leading-relaxed prose prose-sm prose-indigo">${safeText}</div>`;
+      }
+      div.innerHTML = innerHTML;
+      cWindow.appendChild(div);
+      cWindow.scrollTop = cWindow.scrollHeight;
+  }
+
+  document.getElementById('chatForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = cInput.value.trim(); if(!text) return;
+      
+      cInput.value = ''; cBtn.disabled = true; cBtn.classList.add('opacity-50');
+      appendMsg('user', text);
+      chatHistory.push({ role: 'user', content: text });
+      
+      const loadingId = 'loading-' + Date.now();
+      const loadingDiv = document.createElement('div');
+      loadingDiv.id = loadingId;
+      loadingDiv.className = 'flex gap-4 w-5/6 opacity-60';
+      loadingDiv.innerHTML = `<div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 mt-1">🤖</div><div class="bg-white px-5 py-4 rounded-2xl rounded-tl-none border border-slate-100 text-indigo-400 font-bold animate-pulse">正在进行深度神经元解析...</div>`;
+      cWindow.appendChild(loadingDiv); cWindow.scrollTop = cWindow.scrollHeight;
+
+      try {
+          const res = await fetch('/api/vitals/chat', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ messages: chatHistory }) });
+          const data = await res.json();
+          document.getElementById(loadingId).remove();
+          appendMsg('assistant', data.reply);
+          chatHistory.push({ role: 'assistant', content: data.reply });
+      } catch (err) {
+          document.getElementById(loadingId).remove();
+          appendMsg('assistant', '网络波动导致连接中断。');
+      }
+      cBtn.disabled = false; cBtn.classList.remove('opacity-50'); cInput.focus();
+  });
+</script>
+
+<style is:global>
+  .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(79, 70, 229, 0.2); border-radius: 10px; }
+  .prose p { margin-bottom: 0.5em; }
+  .prose strong { color: #312e81; }
+</style>

@@ -1,0 +1,43 @@
+---
+interface Props {
+  variance?: number;
+  stress?: number;
+}
+
+const { variance = 0, stress = 0 } = Astro.props;
+
+// 真实状态判定
+const isOverBudget = variance < 0;
+const isHighStress = stress > 7;
+const isAlert = isOverBudget || isHighStress;
+
+// 动态样式与链接配置
+const alertBg = isAlert ? 'bg-rose-50/90 border-rose-200' : 'bg-slate-900/90 border-slate-800';
+const alertText = isAlert ? 'text-rose-600' : 'text-slate-300';
+const indicatorBg = isAlert ? 'bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.6)]' : 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]';
+
+// ✅ 优化：点击逻辑修改
+// 如果预算超支，去 Lifestyle 复盘；
+// 其他所有情况（包括状态良好或压力大）都引导去 Vitals 进行“觉知”
+const targetLink = isOverBudget ? '/lifestyle' : '/vitals';
+
+const formatMoney = (num: number) => Math.abs(num).toLocaleString(undefined, {maximumFractionDigits:0});
+---
+
+<div class="fixed bottom-10 left-0 right-0 flex justify-center pointer-events-none z-50">
+  <div class={`pointer-events-auto relative px-6 py-3 rounded-full border backdrop-blur-md shadow-2xl flex items-center gap-4 transition-all duration-500 hover:scale-105 ${alertBg}`}>
+    <div class={`w-2.5 h-2.5 rounded-full ${indicatorBg}`}></div>
+    
+    <span class={`text-[10px] font-black uppercase tracking-[0.2em] ${alertText}`}>System Alert</span>
+    <span class={`w-px h-4 ${isAlert ? 'bg-rose-200' : 'bg-white/20'}`}></span>
+    
+    <div class={`text-xs font-bold font-mono tracking-tight flex items-center gap-3 ${alertText}`}>
+        <span>{variance >= 0 ? '盈余' : '赤字'}: {variance >= 0 ? '+' : '-'}{formatMoney(variance)}</span>
+        <span class="opacity-50">|</span>
+        <span>压力负荷: {stress}/10</span>
+        <span class="animate-pulse">→</span>
+    </div>
+    
+    <a href={targetLink} class="absolute inset-0 z-10 block w-full h-full" aria-label="Navigate to System Management"></a>
+  </div>
+</div>

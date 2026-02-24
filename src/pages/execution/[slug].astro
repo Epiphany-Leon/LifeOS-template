@@ -1,0 +1,61 @@
+---
+import { getCollection } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+
+export async function getStaticPaths() {
+  const projects = await getCollection('execution');
+  return projects.map(entry => ({
+    params: { slug: entry.slug }, props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await entry.render();
+---
+
+<Layout title={`${entry.data.title} | Execution`}>
+  <main class="max-w-4xl mx-auto p-6 lg:p-12 pt-40 relative">
+    
+    <nav class="mb-8 text-sm font-medium">
+      <a href="/execution" class="text-slate-400 hover:text-orange-600 transition">← 返回执行象限</a>
+    </nav>
+
+    <header class="mb-12">
+      <div class="flex items-center gap-4 mb-4">
+        <h1 class="text-5xl font-black text-slate-800 tracking-tighter">{entry.data.title}</h1>
+      </div>
+      
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+        <div class="bg-white/30 backdrop-blur-md p-4 rounded-2xl border border-white/60">
+          <p class="text-[10px] font-bold text-slate-400 uppercase">领域</p>
+          <p class="font-bold text-slate-700">{entry.data.area}</p>
+        </div>
+        <div class="bg-white/30 backdrop-blur-md p-4 rounded-2xl border border-white/60">
+          <p class="text-[10px] font-bold text-slate-400 uppercase">当前状态</p>
+          <p class="font-bold text-orange-600">{entry.data.status}</p>
+        </div>
+        <div class="bg-white/30 backdrop-blur-md p-4 rounded-2xl border border-white/60 cursor-help" title="数据来源于 Lifestyle 象限">
+          <p class="text-[10px] font-bold text-slate-400 uppercase">项目成本</p>
+          <p class="font-bold text-slate-700">¥ 120.00</p>
+        </div>
+        <div class="bg-white/30 backdrop-blur-md p-4 rounded-2xl border border-white/60 cursor-help" title="点击查看此项目相关的复盘日记">
+          <p class="text-[10px] font-bold text-slate-400 uppercase">心理负载</p>
+          <p class="font-bold text-rose-500">Medium</p>
+        </div>
+      </div>
+    </header>
+
+    <article class="prose prose-slate prose-lg max-w-none 
+      prose-headings:text-slate-800 prose-headings:font-black
+      prose-p:text-slate-600 prose-strong:text-slate-800
+      bg-white/20 backdrop-blur-sm p-10 rounded-[2.5rem] border border-white/40 shadow-sm">
+      <Content />
+    </article>
+
+    <footer class="mt-12 flex gap-4">
+      <button class="px-6 py-2 bg-slate-800 text-white rounded-xl font-bold">更新进度</button>
+      <button class="px-6 py-2 bg-white/40 border border-white/60 text-slate-600 rounded-xl font-bold">关联知识库</button>
+    </footer>
+
+  </main>
+</Layout>

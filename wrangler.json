@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lifeos",
+  "compatibility_date": "2026-02-20",
+  "pages_build_output_dir": "./dist",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "lifeos-db",
+      "database_id": "b3e34976-91e6-4048-b694-90619b4c8467",
+      "preview_database_id": "DB"
+    }
+  ]
+}
